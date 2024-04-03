@@ -1,13 +1,10 @@
-﻿using System.Formats.Tar;
-using static Poker.Program; 
+﻿using static Poker.Program;
+
 namespace Poker;
 
 /*
- * musí se dodělat logika check
- * musí se dodělat fold
- * není zde CheckPlayerBets() - místo toho je jen LINQ funkce, která checkuje, zda jsou vsechny sazky rovny currentRoundBet
  * Musí se dodělat COR
- * */
+*/
 
 class Program
 {
@@ -29,14 +26,36 @@ class Program
         Deck.DealRiver();
         game.currentPlayer = player1;
         player1.currentBet = 1;
-
-        while (game.gameRound != 3) //vykonávat tohle celé, než bude konec hry
+        do
         {
-            game.GameInputController();
-            game.RefreshStats();
-            player1.currentBet = 1;
+            Console.WriteLine(game.currentPlayer.playerName, game.currentPlayer.playerCash);
+            game.ProcessPlayersInput();
+            game.SwitchPlayer();
+            if (!game.GameRoundController())
+            {
+                game.UpdateGamePot();
+                game.RoundCounter();
+                if (game.pot == 1)
+                {
+                    game.pot -= 1;
+                }
+                switch (game.gameRound)
+                {
+                    case 1:
+                        game.PrintFlop();
+                        break;
+                    case 2:
+                        game.PrintTurn();
+                        break;
+                    case 3:
+                        game.PrintRiver();
+                        break;
+                }
+                game.RefreshStats();
+            }
         }
-
+        while (game.gameRound != 3);
+        
     }
 
     public class Player
@@ -52,6 +71,7 @@ class Program
         public List<int> bets;
         public string choice;
         public bool didCheck;
+        public int cntr;
 
         public Player(string name, int cash)
         {
@@ -65,6 +85,7 @@ class Program
             didCheck = false;
             choice = "";
             isWinner = false;
+            cntr = 0;
         }
 
         public void ShowHand()
@@ -201,7 +222,6 @@ class Program
         public int numberOfPLayers;
         public int gameRound;
         public bool isGameOver;
-        public bool allPlayersBetsSame;
         public Player playerToSkip;
 
 
@@ -211,8 +231,7 @@ class Program
             numberOfPLayers = players.Count;
             pot = 0;
             gameRound = 0;
-            isGameOver = false; //if players.Count == 1 a nebo jiny pravidla
-            allPlayersBetsSame = false;
+            isGameOver = false;
             currentRoundBet = 0;
         }
 
@@ -223,13 +242,11 @@ class Program
             Console.WriteLine("");
             string flopString = "Flop cards: ";
 
-            //Concatenate the string representations of the flop cards
             foreach (Card card in Deck.flop)
             {
                 flopString += card.ToString() + "    ";
             }
 
-            //Print the concatenated string
             Console.WriteLine(flopString);
         }
 
@@ -266,21 +283,20 @@ class Program
             Console.WriteLine($"River card: {Deck.river}");
         }
 
-
         public void SwitchPlayer()
         {
-            for (int i = 0; i < numberOfPLayers; i++)
+            int currentIndex = players.FindIndex(player => player.isOnTurn);
+            players[currentIndex].isOnTurn = false;
+
+            do
             {
-                if (players[i].isOnTurn)
-                {
-                    players[i].isOnTurn = false;
-                    int nextIndex = (i + 1) % numberOfPLayers;
-                    players[nextIndex].isOnTurn = true;
-                    currentPlayer = players[nextIndex];
-                    break;
-                }
-            }
+                currentIndex = (currentIndex + 1) % numberOfPLayers;
+            } while (players[currentIndex] == playerToSkip);
+
+            players[currentIndex].isOnTurn = true;
+            currentPlayer = players[currentIndex];
         }
+
 
         public void ProcessPlayersInput()
         {
@@ -289,7 +305,7 @@ class Program
             while (!validInput)
             {
                 Console.WriteLine("0| check");
-                Console.WriteLine("1| call"); //( cant call if there is no bet :) )
+                Console.WriteLine("1| call");
                 Console.WriteLine("2| raise");
                 Console.WriteLine("3| fold");
                 Console.WriteLine("4| all in");
@@ -360,7 +376,7 @@ class Program
         public bool Call(Player player)
         {
             if (player.playerCash >= currentRoundBet)
-            {
+            { 
                 //when a call occurs, player's bet is equal to the round bet
                 player.currentBet = currentRoundBet;
                 return true;
@@ -376,16 +392,13 @@ class Program
         {
             player.didFold = true;
             playerToSkip = player;
-
         }
 
         public bool Check(Player player)
-        {
+        {   //osetrit check
             player.didCheck = true;
             return true;
         }
-
-
 
         public bool AllIn(Player player)
         {
@@ -425,17 +438,13 @@ class Program
 
         public bool DidAllPlayersAllIn() => players.All(player => player.didAllIn);
 
-        public int NPlayersFold() => players.Count(player => player.didFold);
-
-        public bool didAllPlayersCheck() => players.All(player => player.didCheck);
-
         //dodelat!
         public bool FindWinner()
         {
             List<Player> foldedPlayers = new List<Player>();
             foreach (Player player in players)
             {
-                if (player.didFold && NPlayersFold() > 1)
+                if (player.didFold && players.Count(player => player.didFold) > 1)
                 {
                     foldedPlayers.Add(player);
                 }
@@ -457,13 +466,14 @@ class Program
 
         public void RoundCounter()
         {
-            if (players.All(player => player.currentBet == currentRoundBet) || players.All(player => player.didCheck))
+            if (!GameRoundController())
             {
                 gameRound += 1;
             }
             else if (DidAllPlayersAllIn()) //pokud všichni dají all in, tak můžeme rovnou ukázat všechny karty
             {
                 gameRound += 3;
+                isGameOver = true;
             }
         }
 
@@ -474,46 +484,33 @@ class Program
                 player.didCheck = false;
                 player.didFold = false;
                 player.didAllIn = false;
+                if (player == players[0])
+                {
+                    continue;
+                }
                 player.currentBet = 0;
-                playerToSkip = null;
             }
             currentRoundBet = 0;
 
         }
 
-        public void GameInputController()
+        public bool GameRoundController()
         {
-            do
+            //vybere hrace, kteri nedali fold a pokud se vsech tech hracu sazka rovna celkove herni sazce, tak pak zastavime kolo
+            if (players.Where(player => player.choice != "fold").All(player => player.currentBet == currentRoundBet))
             {
-                Console.WriteLine(currentPlayer.playerName);
-                ProcessPlayersInput();
-
-                SwitchPlayer();
+                return false;
             }
-
-            while (!didAllPlayersCheck() && !players.All(player => player.currentBet == currentRoundBet));
-
-            if (didAllPlayersCheck())
+            //vybere hrace, kteri nedali fold a pokud se vsichni tihle hraci dali check, tak muzeme breaknout
+            else if (players.All(player => player.didCheck))
             {
-                pot -= 1;
+                return false;
             }
-
-            RoundCounter();
-
-            UpdateGamePot();
-
-            switch (gameRound)
+            else if (players.Where(player => player.choice != "fold").All(player => (player.didAllIn || player.currentBet == currentRoundBet)))
             {
-                case 1:
-                    PrintFlop();
-                    break;
-                case 2:
-                    PrintTurn();
-                    break;
-                case 3:
-                    PrintRiver();
-                    break;
+                return false;
             }
+            return true;
         }
     }
 }
