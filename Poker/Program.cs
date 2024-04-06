@@ -11,10 +11,10 @@ class Program
     static void Main(string[] args)
     {
         //inicialization
-        Player player1 = new Player("Denis", 100);
-        Player player2 = new Player("Daniel", 200);
-        Player player3 = new Player("Ondřej", 700);
-        Player player4 = new Player("Petr", 230);
+        Player player1 = new Player("Denis", 1000);
+        Player player2 = new Player("Daniel", 2000);
+        Player player3 = new Player("Ondřej", 7000);
+        Player player4 = new Player("Petr", 2300);
         List<Player> players = new List<Player> { player1, player2, player3 };
         GameManager game = new GameManager(players);
 
@@ -29,16 +29,14 @@ class Program
         do
         {
             Console.WriteLine(game.currentPlayer.playerName, game.currentPlayer.playerCash);
+            game.currentPlayer.ShowHand();
             game.ProcessPlayersInput();
             game.SwitchPlayer();
+
             if (!game.GameRoundController())
             {
                 game.UpdateGamePot();
                 game.RoundCounter();
-                if (game.pot == 1)
-                {
-                    game.pot -= 1;
-                }
                 switch (game.gameRound)
                 {
                     case 1:
@@ -55,7 +53,7 @@ class Program
             }
         }
         while (game.gameRound != 3);
-        
+
     }
 
     public class Player
@@ -71,7 +69,6 @@ class Program
         public List<int> bets;
         public string choice;
         public bool didCheck;
-        public int cntr;
 
         public Player(string name, int cash)
         {
@@ -85,15 +82,16 @@ class Program
             didCheck = false;
             choice = "";
             isWinner = false;
-            cntr = 0;
         }
 
         public void ShowHand()
         {
+            Console.WriteLine("");
             foreach (Card card in hand)
             {
-                Console.WriteLine($"{card}");
+                Console.WriteLine($"|{card}| ");
             }
+            Console.WriteLine("");
         }
     }
 
@@ -223,6 +221,7 @@ class Program
         public int gameRound;
         public bool isGameOver;
         public Player playerToSkip;
+        public bool check; //hra skončila checkem
 
 
         public GameManager(List<Player> listOfPlayers)
@@ -233,6 +232,7 @@ class Program
             gameRound = 0;
             isGameOver = false;
             currentRoundBet = 0;
+            check = false;
         }
 
         public void PrintFlop()
@@ -376,7 +376,7 @@ class Program
         public bool Call(Player player)
         {
             if (player.playerCash >= currentRoundBet)
-            { 
+            {
                 //when a call occurs, player's bet is equal to the round bet
                 player.currentBet = currentRoundBet;
                 return true;
@@ -433,6 +433,10 @@ class Program
                 player.bets.Add(player.currentBet);
                 finalBet += player.currentBet;
             }
+            if (check)
+            {
+                return pot -= 0;
+            }
             return pot += finalBet;
         }
 
@@ -481,29 +485,26 @@ class Program
         {
             foreach (Player player in players)
             {
-                player.didCheck = false;
-                player.didFold = false;
-                player.didAllIn = false;
-                if (player == players[0])
-                {
-                    continue;
-                }
+                players[0].currentBet = 1;
                 player.currentBet = 0;
+                player.didAllIn = false;
+                player.didCheck = false;
             }
             currentRoundBet = 0;
-
+            check = false;
         }
 
         public bool GameRoundController()
         {
             //vybere hrace, kteri nedali fold a pokud se vsech tech hracu sazka rovna celkove herni sazce, tak pak zastavime kolo
-            if (players.Where(player => player.choice != "fold").All(player => player.currentBet == currentRoundBet))
+            if (players.Where(player => (player.choice != "fold" || player.choice != "check")).All(player => player.currentBet == currentRoundBet))
             {
                 return false;
             }
             //vybere hrace, kteri nedali fold a pokud se vsichni tihle hraci dali check, tak muzeme breaknout
-            else if (players.All(player => player.didCheck))
+            else if (players.Where(player => player.choice != "fold").All(player => player.didCheck))
             {
+                check = true;
                 return false;
             }
             else if (players.Where(player => player.choice != "fold").All(player => (player.didAllIn || player.currentBet == currentRoundBet)))
