@@ -1,4 +1,5 @@
-﻿using static Poker.Program;
+﻿using System;
+using static Poker.Program;
 
 namespace Poker;
 
@@ -17,6 +18,16 @@ class Program
         Player player4 = new Player("Petr", 2300);
         List<Player> players = new List<Player> { player1, player2, player3 };
         GameManager game = new GameManager(players);
+        RoyalFlush RoyalFlushHandler = new RoyalFlush();
+        StraightFlush StraightFlushHandler = new StraightFlush();
+        FourOfAKind FourOfAKindHandler = new FourOfAKind(players, game);
+        FullHouse FullHouseHandler = new FullHouse();
+        Flush FlushHandler = new Flush();
+        Straight StraightHandler = new Straight();
+        ThreeOfAKind ThreeOfAKindHandler = new ThreeOfAKind(players, game);
+        TwoPair TwoPairHandler = new TwoPair(game);
+        Pair PairHandler = new Pair(game);
+        HighCard HighCardHandler = new HighCard(game);
 
         //game loop
         Deck.DealTheCardsToPlayers(players);
@@ -26,34 +37,192 @@ class Program
         Deck.DealRiver();
         game.currentPlayer = player1;
         player1.currentBet = 1;
-        do
-        {
-            Console.WriteLine(game.currentPlayer.playerName, game.currentPlayer.playerCash);
-            game.currentPlayer.ShowHand();
-            game.ProcessPlayersInput();
-            game.SwitchPlayer();
 
-            if (!game.GameRoundController())
+        //game.GameLoop();
+
+
+        //foreach (Player player in players)
+        //{
+        //    PairHandler.HandleRequest(Deck.PlayerCommunityCards(player));
+        //}
+
+        //chain of responsibility
+
+        foreach (Card card in Deck.PlayerCommunityCards(player1))
+        {
+            Console.WriteLine(card);
+        }
+        ThreeOfAKindHandler.SetNext(TwoPairHandler).SetNext(PairHandler).SetNext(HighCardHandler);
+        ThreeOfAKindHandler.HandleRequest(Deck.PlayerCommunityCards(player1));
+        Console.WriteLine(game.TypeOfGameEnd);
+    }
+
+    public abstract class RequestHandler
+    {
+        private RequestHandler next;
+
+        public RequestHandler SetNext(RequestHandler next)
+        {
+            this.next = next;
+            return next;
+        }
+
+        protected void PassNext(List<Card> CC)
+        {
+            if (next != null)
             {
-                game.UpdateGamePot();
-                game.RoundCounter();
-                switch (game.gameRound)
-                {
-                    case 1:
-                        game.PrintFlop();
-                        break;
-                    case 2:
-                        game.PrintTurn();
-                        break;
-                    case 3:
-                        game.PrintRiver();
-                        break;
-                }
-                game.RefreshStats();
+                next.HandleRequest(CC);
             }
         }
-        while (game.gameRound != 3);
 
+        public abstract void HandleRequest(List<Card> CC);
+    }
+
+    public class RoyalFlush : RequestHandler
+    {
+        public override void HandleRequest(List<Card> CC)
+        {   //algoritmus k detekci královské postupky
+            throw new NotImplementedException();
+        }
+    }
+
+    public class StraightFlush : RequestHandler
+    {
+        public override void HandleRequest(List<Card> CC)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class FourOfAKind : RequestHandler
+    {
+        private List<Player> players;
+        private GameManager game;
+
+        public FourOfAKind(List<Player> players, GameManager game)
+        {
+            this.players = players;
+            this.game = game;
+        }
+
+        public override void HandleRequest(List<Card> CC)
+        {
+            foreach (var pair in game.CountCC(CC))
+            {
+                if (pair.Value == 4)
+                {
+                    game.SetGameEnd("Four of a kind");
+                }
+                PassNext(CC);
+            }
+        }
+    }
+
+    public class FullHouse : RequestHandler
+    {
+        public override void HandleRequest(List<Card> CC)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class Flush : RequestHandler
+    {
+        public override void HandleRequest(List<Card> CC)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class Straight : RequestHandler
+    {
+        public override void HandleRequest(List<Card> CC)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class ThreeOfAKind : RequestHandler
+    {
+        private List<Player> players;
+        private GameManager game;
+
+        public ThreeOfAKind(List<Player> players, GameManager game)
+        {
+            this.players = players;
+            this.game = game;
+        }
+
+        public override void HandleRequest(List<Card> CC)
+        {
+            foreach (var pair in game.CountCC(CC))
+            {
+                if (pair.Value == 3)
+                {
+                    game.SetGameEnd("Three of a kind");
+                    return;
+                }
+                PassNext(CC);
+            }
+        }
+    }
+
+    public class TwoPair : RequestHandler
+    {
+        private GameManager game;
+
+        public TwoPair(GameManager game)
+        {
+            this.game = game;
+        }
+
+        public override void HandleRequest(List<Card> CC)
+        {
+            if (game.CountCC(CC).Count(kvp => kvp.Value == 2) == 2)
+            {
+                game.SetGameEnd("Two pair");
+                return;
+            }
+            PassNext(CC);
+        }
+    }
+
+    public class Pair : RequestHandler
+    {
+        private GameManager game;
+
+        public Pair(GameManager game)
+        {
+            this.game = game;
+        }
+
+        public override void HandleRequest(List<Card> CC)
+        {
+            foreach (var pair in game.CountCC(CC))
+            {
+                if (pair.Value == 2)
+                {
+                    game.SetGameEnd("Pair");
+                    return;
+                }
+                PassNext(CC);
+            }
+        }
+    }
+
+    public class HighCard : RequestHandler
+    {
+        private GameManager game;
+
+        public HighCard(GameManager game)
+        {
+            this.game = game;
+        }
+
+        public override void HandleRequest(List<Card> CC)
+        {
+            game.SetGameEnd("High card");
+        }
     }
 
     public class Player
@@ -188,6 +357,19 @@ class Program
             river = randomCard;
             deck.RemoveAt(randomIndex);
         }
+
+        public static List<Card> PlayerCommunityCards(Player player)
+        {
+            List<Card> CommunityCards = new List<Card>();
+            CommunityCards.Add(Deck.turn);
+            CommunityCards.Add(Deck.river);
+            CommunityCards.AddRange(Deck.flop);
+            foreach (Card card in player.hand)
+            {
+                CommunityCards.Add(card);
+            }
+            return CommunityCards;
+        }
     }
 
 
@@ -210,7 +392,7 @@ class Program
     }
 
 
-    class GameManager
+    public class GameManager
     {
         public Player currentPlayer;
         public List<Player> players;
@@ -222,6 +404,7 @@ class Program
         public bool isGameOver;
         public Player playerToSkip;
         public bool check; //hra skončila checkem
+        public string TypeOfGameEnd { get; set; }
 
 
         public GameManager(List<Player> listOfPlayers)
@@ -233,6 +416,30 @@ class Program
             isGameOver = false;
             currentRoundBet = 0;
             check = false;
+            TypeOfGameEnd = "";
+        }
+
+        public Dictionary<Rank, int> CountCC(List<Card> CC)
+        {
+            Dictionary<Rank, int> CCDict = new Dictionary<Rank, int>();
+
+            foreach (Card ComunityCard in CC)
+            {
+                if (CCDict.ContainsKey(ComunityCard.GetRank()))
+                {
+                    CCDict[ComunityCard.GetRank()] += 1;
+                }
+                else
+                {
+                    CCDict.Add(ComunityCard.GetRank(), 1);
+                }
+            }
+            return CCDict;
+        }
+
+        public void SetGameEnd(string type)
+        {
+            TypeOfGameEnd = type;
         }
 
         public void PrintFlop()
@@ -512,6 +719,37 @@ class Program
                 return false;
             }
             return true;
+        }
+
+        public void GameLoop()
+        {
+            do
+            {
+                Console.WriteLine(currentPlayer.playerName, currentPlayer.playerCash);
+                currentPlayer.ShowHand();
+                ProcessPlayersInput();
+                SwitchPlayer();
+
+                if (!GameRoundController())
+                {
+                    UpdateGamePot();
+                    RoundCounter();
+                    switch (gameRound)
+                    {
+                        case 1:
+                            PrintFlop();
+                            break;
+                        case 2:
+                            PrintTurn();
+                            break;
+                        case 3:
+                            PrintRiver();
+                            break;
+                    }
+                    RefreshStats();
+                }
+            }
+            while (gameRound != 3);
         }
     }
 }
