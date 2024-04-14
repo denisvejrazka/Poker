@@ -3,10 +3,6 @@ using static Poker.Program;
 
 namespace Poker;
 
-/*
- * Musí se dodělat COR
-*/
-
 class Program
 {
     static void Main(string[] args)
@@ -18,12 +14,12 @@ class Program
         Player player4 = new Player("Petr", 2300);
         List<Player> players = new List<Player> { player1, player2, player3 };
         GameManager game = new GameManager(players);
-        RoyalFlush RoyalFlushHandler = new RoyalFlush();
-        StraightFlush StraightFlushHandler = new StraightFlush();
-        FourOfAKind FourOfAKindHandler = new FourOfAKind(players, game);
-        FullHouse FullHouseHandler = new FullHouse();
-        Flush FlushHandler = new Flush();
-        Straight StraightHandler = new Straight();
+        RoyalFlush RoyalFlushHandler = new RoyalFlush(game);
+        StraightFlush StraightFlushHandler = new StraightFlush(game);
+        FourOfAKind FourOfAKindHandler = new FourOfAKind(game);
+        FullHouse FullHouseHandler = new FullHouse(game);
+        Flush FlushHandler = new Flush(game);
+        Straight StraightHandler = new Straight(game);
         ThreeOfAKind ThreeOfAKindHandler = new ThreeOfAKind(players, game);
         TwoPair TwoPairHandler = new TwoPair(game);
         Pair PairHandler = new Pair(game);
@@ -46,14 +42,18 @@ class Program
         //    PairHandler.HandleRequest(Deck.PlayerCommunityCards(player));
         //}
 
-        //chain of responsibility
-
         foreach (Card card in Deck.PlayerCommunityCards(player1))
         {
             Console.WriteLine(card);
         }
-        ThreeOfAKindHandler.SetNext(TwoPairHandler).SetNext(PairHandler).SetNext(HighCardHandler);
-        ThreeOfAKindHandler.HandleRequest(Deck.PlayerCommunityCards(player1));
+
+        //chain of responsibility
+        RoyalFlushHandler.SetNext(StraightFlushHandler).SetNext(FourOfAKindHandler)
+        .SetNext(FullHouseHandler).SetNext(FlushHandler).SetNext(StraightHandler)
+        .SetNext(ThreeOfAKindHandler).SetNext(TwoPairHandler).SetNext(PairHandler)
+        .SetNext(HighCardHandler);
+
+        RoyalFlushHandler.HandleRequest(Deck.PlayerCommunityCards(player1));
         Console.WriteLine(game.TypeOfGameEnd);
     }
 
@@ -80,28 +80,71 @@ class Program
 
     public class RoyalFlush : RequestHandler
     {
+        private GameManager game;
+
+        public RoyalFlush(GameManager game)
+        {
+            this.game = game;
+        }
+
         public override void HandleRequest(List<Card> CC)
-        {   //algoritmus k detekci královské postupky
-            throw new NotImplementedException();
+        {
+            List<Rank> ranks = new List<Rank>();
+            List<Suit> suits = new List<Suit>();
+
+            foreach (Card card in CC)
+            {
+                ranks.Add(card.GetRank());
+
+            }
+
+            if (ranks.Contains(Rank.Ace) && ranks.Contains(Rank.King) && ranks.Contains(Rank.Queen) && ranks.Contains(Rank.Jack) && ranks.Contains(Rank.Ten))
+            {
+                if (suits.All(s => s == Suit.Diamonds || s == Suit.Clubs || s == Suit.Hearts || s == Suit.Spades))
+                {
+                    game.SetGameEnd("Royal flush");
+                }
+            }
+            PassNext(CC);
         }
     }
 
     public class StraightFlush : RequestHandler
     {
+        private GameManager game;
+        public StraightFlush(GameManager game)
+        {
+            this.game = game;
+        }
+
         public override void HandleRequest(List<Card> CC)
         {
-            throw new NotImplementedException();
+            List<Card> SortedCC = CC.OrderBy(c => c.GetRank()).ToList();
+            int cntr = 0;
+
+            for (int i = 0; i < CC.Count - 1; i++)
+            {
+                if ((SortedCC[i + 1].GetRank() == SortedCC[i].GetRank() + 1) && (SortedCC[i + 1].GetSuit() == SortedCC[i].GetSuit() + 1))
+                {
+                    cntr += 1;
+                }
+            }
+
+            if (cntr >= 5)
+            {
+                game.SetGameEnd("Straight FLush");
+                return;
+            }
+            PassNext(CC);
         }
     }
 
     public class FourOfAKind : RequestHandler
     {
-        private List<Player> players;
         private GameManager game;
 
-        public FourOfAKind(List<Player> players, GameManager game)
+        public FourOfAKind(GameManager game)
         {
-            this.players = players;
             this.game = game;
         }
 
@@ -112,6 +155,7 @@ class Program
                 if (pair.Value == 4)
                 {
                     game.SetGameEnd("Four of a kind");
+                    return;
                 }
                 PassNext(CC);
             }
@@ -120,25 +164,72 @@ class Program
 
     public class FullHouse : RequestHandler
     {
+        private GameManager game;
+
+        public FullHouse(GameManager game)
+        {
+            this.game = game;
+        }
+
         public override void HandleRequest(List<Card> CC)
         {
-            throw new NotImplementedException();
+            if (game.CountCC(CC).ContainsValue(2) && game.CountCC(CC).ContainsValue(3))
+            {
+                game.SetGameEnd("Full House");
+                return;
+            }
+            PassNext(CC);
         }
     }
 
     public class Flush : RequestHandler
     {
+        private GameManager game;
+
+        public Flush(GameManager game)
+        {
+            this.game = game;
+        }
+
         public override void HandleRequest(List<Card> CC)
         {
-            throw new NotImplementedException();
+            if (CC.GroupBy(card => card.GetSuit()).Count(group => group.Count() >= 5) == 1)
+            {
+                game.SetGameEnd("Flush");
+                return;
+            }
+            PassNext(CC);
         }
     }
 
     public class Straight : RequestHandler
     {
+        private GameManager game;
+
+        public Straight(GameManager game)
+        {
+            this.game = game;
+        }
+
         public override void HandleRequest(List<Card> CC)
         {
-            throw new NotImplementedException();
+            List<Card> SortedCC = CC.OrderBy(c => c.GetRank()).ToList();
+            int cntr = 0;
+
+            for (int i = 0; i < CC.Count - 1; i++)
+            {
+                if (SortedCC[i + 1].GetRank() == SortedCC[i].GetRank() + 1)
+                {
+                    cntr += 1;
+                }
+            }
+
+            if (cntr >= 5)
+            {
+                game.SetGameEnd("Straight");
+                return;
+            }
+            PassNext(CC);
         }
     }
 
@@ -187,6 +278,7 @@ class Program
         }
     }
 
+    //funguje
     public class Pair : RequestHandler
     {
         private GameManager game;
@@ -266,14 +358,7 @@ class Program
 
     public enum Suit { Hearts, Diamonds, Clubs, Spades }
 
-    public enum Rank
-    {
-        Ace = 1,
-        Two, Three, Four, Five, Six, Seven, Eight, Nine, Ten,
-        Jack, // 11
-        Queen, // 12
-        King // 13
-    }
+    public enum Rank { Ace = 1, Two, Three, Four, Five, Six, Seven, Eight, Nine, Ten, Jack, Queen, King }
 
     public static class Deck
     {
