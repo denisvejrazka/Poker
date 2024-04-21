@@ -14,16 +14,16 @@ class Program
         Player player4 = new Player("Petr", 2300);
         List<Player> players = new List<Player> { player1, player2, player3 };
         GameManager game = new GameManager(players);
-        RoyalFlush RoyalFlushHandler = new RoyalFlush(game);
-        StraightFlush StraightFlushHandler = new StraightFlush(game);
-        FourOfAKind FourOfAKindHandler = new FourOfAKind(game);
-        FullHouse FullHouseHandler = new FullHouse(game);
-        Flush FlushHandler = new Flush(game);
-        Straight StraightHandler = new Straight(game);
-        ThreeOfAKind ThreeOfAKindHandler = new ThreeOfAKind(players, game);
-        TwoPair TwoPairHandler = new TwoPair(game);
-        Pair PairHandler = new Pair(game);
-        HighCard HighCardHandler = new HighCard(game);
+        RequestHandler RoyalFlushHandler = new RoyalFlush(game);
+        RequestHandler StraightFlushHandler = new StraightFlush(game);
+        RequestHandler FourOfAKindHandler = new FourOfAKind(game);
+        RequestHandler FullHouseHandler = new FullHouse(game);
+        RequestHandler FlushHandler = new Flush(game);
+        RequestHandler StraightHandler = new Straight(game);
+        RequestHandler ThreeOfAKindHandler = new ThreeOfAKind(players, game);
+        RequestHandler TwoPairHandler = new TwoPair(game);
+        RequestHandler PairHandler = new Pair(game);
+        RequestHandler HighCardHandler = new HighCard(game);
 
         //game loop
         Deck.DealTheCardsToPlayers(players);
@@ -34,27 +34,28 @@ class Program
         game.currentPlayer = player1;
         player1.currentBet = 1;
 
-        //game.GameLoop();
-
-
-        //foreach (Player player in players)
-        //{
-        //    PairHandler.HandleRequest(Deck.PlayerCommunityCards(player));
-        //}
-
-        foreach (Card card in Deck.PlayerCommunityCards(player1))
-        {
-            Console.WriteLine(card);
-        }
-
         //chain of responsibility
         RoyalFlushHandler.SetNext(StraightFlushHandler).SetNext(FourOfAKindHandler)
         .SetNext(FullHouseHandler).SetNext(FlushHandler).SetNext(StraightHandler)
         .SetNext(ThreeOfAKindHandler).SetNext(TwoPairHandler).SetNext(PairHandler)
         .SetNext(HighCardHandler);
 
-        RoyalFlushHandler.HandleRequest(Deck.PlayerCommunityCards(player1));
+        game.GameLoop();
+
+        foreach (Player player in players)
+        {
+            RoyalFlushHandler.HandleRequest(Deck.PlayerCommunityCards(player));
+        }
         Console.WriteLine(game.TypeOfGameEnd);
+
+        //foreach (Card card in Deck.PlayerCommunityCards(player1))
+        //{
+        //    Console.WriteLine(card);
+        //}
+
+
+        //RoyalFlushHandler.HandleRequest(Deck.PlayerCommunityCards(player1));
+        //Console.WriteLine(game.TypeOfGameEnd);
     }
 
     public abstract class RequestHandler
@@ -67,7 +68,7 @@ class Program
             return next;
         }
 
-        protected void PassNext(List<Card> CC)
+        protected void PassNext(List<Card> CC) //protected metoda s implementací je viditelná v rámci třídy a pro ty, kteří dědí
         {
             if (next != null)
             {
@@ -669,7 +670,6 @@ class Program
         {
             if (player.playerCash >= currentRoundBet)
             {
-                //when a call occurs, player's bet is equal to the round bet
                 player.currentBet = currentRoundBet;
                 return true;
             }
